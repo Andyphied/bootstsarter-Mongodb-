@@ -1,0 +1,578 @@
+{
+    "kind": "Template",
+    "apiVersion": "v1",
+    "metadata": {
+      "name": "nodejs-postgres-tasks",
+      "annotations": {
+        "openshift.io/display-name": "Node.js + postgres (Ephemeral)",
+        "description": "An example Node.js application with a Postgres database. For more information about using this template, including OpenShift considerations, see https://github.com/sclorg/nodejs-ex/blob/master/README.md.\n\nWARNING: Any data stored will be lost upon pod destruction. Only use this template for testing.",
+        "tags": "quickstart,nodejs,hidden",
+        "iconClass": "icon-nodejs",
+        "openshift.io/long-description": "This template defines resources needed to develop a NodeJS application, including a build configuration, application deployment configuration, and database deployment configuration.  The database is stored in non-persistent storage, so this configuration should be used for experimental purposes only.",
+        "openshift.io/provider-display-name": "Red Hat, Inc.",
+        "openshift.io/documentation-url": "https://github.com/likeclem30/bootstarter",
+        "openshift.io/support-url": "https://access.redhat.com",
+        "template.openshift.io/bindable": "false"
+      }
+    },
+    "message": "The following service(s) have been created in your project: ${NAME}, ${DATABASE_SERVICE_NAME}.\n\nFor more information about using this template, including OpenShift considerations, see https://github.com/sclorg/nodejs-ex/blob/master/README.md.",
+    "labels": {
+        "template": "nodejs-postgres-tasks",
+        "app": "nodejs-postgres-tasks"
+    },
+    "objects": [
+      {
+        "kind": "Secret",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}"
+        },
+        "stringData": {
+          "database-user": "${DATABASE_USER}",
+          "database-password": "${DATABASE_PASSWORD}",
+          "keybase": "${SECRET_KEY_BASE}"
+        }
+      },
+      {
+        "kind": "Service",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}",
+          "annotations": {
+            "description": "Exposes and load balances the application pods",
+            "service.alpha.openshift.io/dependencies": "[{\"name\": \"${DATABASE_SERVICE_NAME}\", \"kind\": \"Service\"}]"
+          }
+        },
+        "spec": {
+          "ports": [
+            {
+              "name": "web",
+              "port": 8080,
+              "targetPort": 8080
+            }
+          ],
+          "selector": {
+            "name": "${NAME}"
+          }
+        }
+      },
+      {
+        "kind": "Route",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}"
+        },
+        "spec": {
+          "host": "${APPLICATION_DOMAIN}",
+          "to": {
+            "kind": "Service",
+            "name": "${NAME}"
+          }
+        }
+      },
+      {
+        "kind": "ImageStream",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}",
+          "annotations": {
+            "description": "Keeps track of changes in the application image"
+          }
+        }
+      },
+      {
+        "kind": "BuildConfig",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}",
+          "annotations": {
+            "description": "Defines how to build the application",
+            "template.alpha.openshift.io/wait-for-ready": "true"
+          }
+        },
+        "spec": {
+          "source": {
+            "type": "Git",
+            "git": {
+              "uri": "${SOURCE_REPOSITORY_URL}",
+              "ref": "${SOURCE_REPOSITORY_REF}"
+            },
+            "contextDir": "${CONTEXT_DIR}"
+          },
+          "strategy": {
+            "type": "Source",
+            "sourceStrategy": {
+              "from": {
+                "kind": "ImageStreamTag",
+                "namespace": "${NAMESPACE}",
+                "name": "nodejs:${NODEJS_VERSION}"
+              },
+              "env": [
+                {
+                  "name": "NPM_MIRROR",
+                  "value": "${NPM_MIRROR}"
+                }
+              ]
+            }
+          },
+          "output": {
+            "to": {
+              "kind": "ImageStreamTag",
+              "name": "${NAME}:latest"
+            }
+          },
+          "triggers": [
+            {
+              "type": "ImageChange"
+            },
+            {
+              "type": "ConfigChange"
+            },
+            {
+              "type": "GitHub",
+              "github": {
+                "secret": "${GITHUB_WEBHOOK_SECRET}"
+              }
+            },
+            {
+              "type": "Generic",
+              "generic": {
+                "secret": "${GENERIC_WEBHOOK_SECRET}"
+              }
+            }
+          ],
+          "postCommit": {
+            "script": "npm test"
+          }
+        }
+      },
+      {
+        "kind": "DeploymentConfig",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${NAME}",
+          "annotations": {
+            "description": "Defines how to deploy the application server",
+            "template.alpha.openshift.io/wait-for-ready": "true"
+          }
+        },
+        "spec": {
+          "strategy": {
+            "type": "Recreate"
+          },
+          "triggers": [
+            {
+              "type": "ImageChange",
+              "imageChangeParams": {
+                "automatic": true,
+                "containerNames": [
+                  "nodejs-postgres-tasks"
+                ],
+                "from": {
+                  "kind": "ImageStreamTag",
+                  "name": "${NAME}:latest"
+                }
+              }
+            },
+            {
+              "type": "ConfigChange"
+            }
+          ],
+          "replicas": 1,
+          "selector": {
+            "name": "${NAME}"
+          },
+          "template": {
+            "metadata": {
+              "name": "${NAME}",
+              "labels": {
+                "name": "${NAME}"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "name": "nodejs-postgres-tasks",
+                  "image": " ",
+                  "ports": [
+                    {
+                      "containerPort": 8080
+                    }
+                  ],
+                  "env": [
+                    {
+                      "name": "DATABASE_SERVICE_NAME",
+                      "value": "${DATABASE_SERVICE_NAME}"
+                    },
+                    {
+                      "name": "POSTGRESQL_USER",
+                      "valueFrom": {
+                        "secretKeyRef" : {
+                          "name" : "${NAME}",
+                          "key" : "database-user"
+                        }
+                      }
+                    },
+                    {
+                      "name": "POSTGRESQL_PASSWORD",
+                      "valueFrom": {
+                        "secretKeyRef" : {
+                          "name" : "${NAME}",
+                          "key" : "database-password"
+                        }
+                      }
+                    },
+                    {
+                      "name": "POSTGRESQL_DATABASE",
+                      "value": "${DATABASE_NAME}"
+                    },
+                    {
+                      "name": "SECRET_KEY_BASE",
+                      "valueFrom": {
+                        "secretKeyRef" : {
+                          "name" : "${NAME}",
+                          "key" : "keybase"
+                        }
+                      }
+                    },
+                    {
+                      "name": "POSTGRESQL_MAX_CONNECTIONS",
+                      "value": "${POSTGRESQL_MAX_CONNECTIONS}"
+                      },
+                      {
+                      "name": "POSTGRESQL_SHARED_BUFFERS",
+                      "value": "${POSTGRESQL_SHARED_BUFFERS}"
+                      }
+                  ],
+                  "readinessProbe": {
+                    "timeoutSeconds": 3,
+                    "initialDelaySeconds": 3,
+                    "httpGet": {
+                      "path": "/",
+                      "port": 8080
+                    }
+                  },
+                  "livenessProbe": {
+                    "timeoutSeconds": 3,
+                    "initialDelaySeconds": 30,
+                    "httpGet": {
+                      "path": "/",
+                      "port": 8080
+                    }
+                  },
+                  "resources": {
+                    "limits": {
+                      "memory": "${MEMORY_LIMIT}"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "kind": "Service",
+        "apiVersion": "v1",
+        "metadata": {
+          "name": "${DATABASE_SERVICE_NAME}",
+          "annotations": {
+            "description": "Exposes the database server"
+          }
+        },
+        "spec": {
+          "ports": [
+            {
+              "name": "postgresql",
+              "port": 5432,
+              "targetPort": 5432
+            }
+          ],
+          "selector": {
+            "name": "${DATABASE_SERVICE_NAME}"
+          }
+        }
+      },
+      {
+        "kind": "DeploymentConfig",
+        "apiVersion": "v1",
+        "metadata": {
+                  "annotations": {
+                      "description": "Defines how to deploy the database",
+                      "template.alpha.openshift.io/wait-for-ready": "true"
+                  },
+                  "name": "${DATABASE_SERVICE_NAME}"
+              },
+        "spec": {
+          "strategy": {
+            "type": "Recreate"
+          },
+          
+          "triggers": [
+                      {
+                          "imageChangeParams": {
+                              "automatic": true,
+                              "containerNames": [
+                                  "postgresql"
+                              ],
+                              "from": {
+                                  "kind": "ImageStreamTag",
+                                  "name": "postgresql:10",
+                                  "namespace": "${NAMESPACE}"
+                              }
+                          },
+                          "type": "ImageChange"
+                      },
+                      {
+                          "type": "ConfigChange"
+                      }
+                  ],
+          "replicas": 1,
+          "selector": {
+            "name": "${DATABASE_SERVICE_NAME}"
+          },
+          "template": {
+            "metadata": {
+              "name": "${DATABASE_SERVICE_NAME}",
+              "labels": {
+                "name": "${DATABASE_SERVICE_NAME}"
+              }
+            },
+            "spec": {
+              "containers": [
+                {
+                  "name": "postgresql",
+                  "image": " ",
+                  "ports": [
+                    {
+                      "containerPort": 5432
+                    }
+                  ],
+                  "env": [
+                                      {
+                                          "name": "POSTGRESQL_USER",
+                                          "valueFrom": {
+                                              "secretKeyRef": {
+                                                  "key": "database-user",
+                                                  "name": "${NAME}"
+                                              }
+                                          }
+                                      },
+                                      {
+                                          "name": "POSTGRESQL_PASSWORD",
+                                          "valueFrom": {
+                                              "secretKeyRef": {
+                                                  "key": "database-password",
+                                                  "name": "${NAME}"
+                                              }
+                                          }
+                                      },
+                                      {
+                                          "name": "POSTGRESQL_DATABASE",
+                                          "value": "${DATABASE_NAME}"
+                                      },
+                                      {
+                                          "name": "POSTGRESQL_MAX_CONNECTIONS",
+                                          "value": "${POSTGRESQL_MAX_CONNECTIONS}"
+                                      },
+                                      {
+                                          "name": "POSTGRESQL_SHARED_BUFFERS",
+                                          "value": "${POSTGRESQL_SHARED_BUFFERS}"
+                                      }
+                                  ],
+                "readinessProbe": {
+                                      "exec": {
+                                          "command": [
+                                              "/usr/libexec/check-container"
+                                          ]
+                                      },
+                                      "initialDelaySeconds": 5,
+                                      "timeoutSeconds": 1
+                                  },
+                  "livenessProbe": {
+                                      "exec": {
+                                          "command": [
+                                              "/usr/libexec/check-container",
+                                              "--live"
+                                          ]
+                                      },
+                                      "initialDelaySeconds": 120,
+                                      "timeoutSeconds": 10
+                                  },
+                  "resources": {
+                                      "limits": {
+                                          "memory": "${MEMORY_POSTGRESQL_LIMIT}"
+                                      }
+                                  },
+                  "volumeMounts": [
+                                      {
+                                          "mountPath": "/var/lib/pgsql/data",
+                                          "name": "data"
+                                      }
+                                  ]
+                }
+              ],
+              "volumes": [
+                              {
+                                  "emptyDir": {},
+                                  "name": "data"
+                              }
+                          ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": [
+      {
+        "name": "NAME",
+        "displayName": "Name",
+        "description": "The name assigned to all of the frontend objects defined in this template.",
+        "required": true,
+        "value": "nodejs-postgres-tasks"
+      },
+      {
+        "name": "NAMESPACE",
+        "displayName": "Namespace",
+        "description": "The OpenShift Namespace where the ImageStream resides.",
+        "required": true,
+        "value": "openshift"
+      },
+      {
+        "name": "NODEJS_VERSION",
+        "displayName": "Version of NodeJS Image",
+        "description": "Version of NodeJS image to be used (10, 12, or latest).",
+        "value": "12",
+        "required": true
+      },
+      {
+        "name": "MEMORY_LIMIT",
+        "displayName": "Memory Limit",
+        "description": "Maximum amount of memory the Node.js container can use.",
+        "required": true,
+        "value": "512Mi"
+      },
+      {
+        "name": "SOURCE_REPOSITORY_URL",
+        "displayName": "Git Repository URL",
+        "description": "The URL of the repository with your application source code.",
+        "required": true,
+        "value": "https://github.com/likeclem30/bootstarter.git"
+      },
+      {
+        "name": "SOURCE_REPOSITORY_REF",
+        "displayName": "Git Reference",
+        "description": "Set this to a branch name, tag or other ref of your repository if you are not using the default branch.",
+        "value": "devs"
+      },
+      {
+        "name": "CONTEXT_DIR",
+        "displayName": "Context Directory",
+        "description": "Set this to the relative path to your project if it is not in the root of your repository.",
+        "value": "tasks-api"
+      },
+      {
+        "name": "APPLICATION_DOMAIN",
+        "displayName": "Application Hostname",
+        "description": "The exposed hostname that will route to the Node.js service, if left blank a value will be defaulted.",
+        "value": ""
+      },
+      {
+        "name": "GITHUB_WEBHOOK_SECRET",
+        "displayName": "GitHub Webhook Secret",
+        "description": "Github trigger secret.  A difficult to guess string encoded as part of the webhook URL.  Not encrypted.",
+        "generate": "expression",
+        "from": "[a-zA-Z0-9]{40}"
+      },
+      {
+        "name": "GENERIC_WEBHOOK_SECRET",
+        "displayName": "Generic Webhook Secret",
+        "description": "A secret string used to configure the Generic webhook.",
+        "generate": "expression",
+        "from": "[a-zA-Z0-9]{40}"
+      },
+      {
+        "name": "NPM_MIRROR",
+        "displayName": "Custom NPM Mirror URL",
+        "description": "The custom NPM mirror URL",
+        "value": ""
+      },
+          {
+              "description": "The OpenShift Namespace where the ImageStream resides.",
+              "displayName": "Namespace",
+              "name": "NAMESPACE",
+              "required": true,
+              "value": "openshift"
+          },
+          {
+              "description": "Maximum amount of memory the Rails container can use.",
+              "displayName": "Memory Limit",
+              "name": "MEMORY_LIMIT",
+              "required": true,
+              "value": "512Mi"
+          },
+          {
+              "description": "Maximum amount of memory the PostgreSQL container can use.",
+              "displayName": "Memory Limit (PostgreSQL)",
+              "name": "MEMORY_POSTGRESQL_LIMIT",
+              "required": true,
+              "value": "512Mi"
+          },
+          {
+              "description": "The exposed hostname that will route to the Rails service, if left blank a value will be defaulted.",
+              "displayName": "Application Hostname",
+              "name": "APPLICATION_DOMAIN",
+              "value": ""
+          },
+          {
+              "description": "Github trigger secret.  A difficult to guess string encoded as part of the webhook URL.  Not encrypted.",
+              "displayName": "GitHub Webhook Secret",
+              "from": "[a-zA-Z0-9]{40}",
+              "generate": "expression",
+              "name": "GITHUB_WEBHOOK_SECRET"
+          },
+          {
+              "description": "Your secret key for verifying the integrity of signed cookies.",
+              "displayName": "Secret Key",
+              "from": "[a-z0-9]{127}",
+              "generate": "expression",
+              "name": "SECRET_KEY_BASE"
+          },
+          {
+              "displayName": "Database Service Name",
+              "name": "DATABASE_SERVICE_NAME",
+              "required": true,
+              "value": "database"
+          },
+          {
+              "displayName": "Database Username",
+              "from": "user[A-Z0-9]{3}",
+              "generate": "expression",
+              "name": "DATABASE_USER"
+          },
+          {
+              "displayName": "Database Password",
+              "from": "[a-zA-Z0-9]{8}",
+              "generate": "expression",
+              "name": "DATABASE_PASSWORD"
+          },
+          {
+              "displayName": "Database Name",
+              "name": "DATABASE_NAME",
+              "required": true,
+              "value": "postgres"
+          },
+          {
+              "displayName": "Maximum Database Connections",
+              "name": "POSTGRESQL_MAX_CONNECTIONS",
+              "value": "100"
+          },
+          {
+              "displayName": "Shared Buffer Amount",
+              "name": "POSTGRESQL_SHARED_BUFFERS",
+              "value": "12MB"
+          }
+   
+    ]
+  }
+  

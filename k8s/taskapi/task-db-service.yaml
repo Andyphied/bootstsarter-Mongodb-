@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+    namespace: hopper
+    labels:
+        app: task-api-service
+    name: task-api-service
+spec:
+    ports:
+        - name: task-api
+          port: 80
+          targetPort: 8000
+    selector:
+        app: task-api
+    type: NodePort

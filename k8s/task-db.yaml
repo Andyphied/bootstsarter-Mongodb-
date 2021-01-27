@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: task-api-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: task-api-db
+  template:
+    metadata:
+      labels:
+        app: task-api-db
+    spec:
+      containers:
+      - name: task-api
+        image: bootcamp-starter-kit_tasks-api
+        imagePullPolicy: Never #IfNotPresent
+        ports:
+        - name: nodejs-port
+          containerPort: 3000
+        env:
+          - name: PG_HOST
+            value: postgres-service
+          - name: PG_PORT
+            value: "5432" 
+          - name: PG_DATABASE
+            value: starterkit
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                name: postgres-db
+                key: username
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: postgres-db
+                key: password

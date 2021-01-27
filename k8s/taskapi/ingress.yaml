@@ -1,0 +1,15 @@
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+    name: task-api-ingress
+    namespace: hopper
+spec:
+    rules:
+        - host: task-api-service
+          http:
+            paths:
+              - backend:
+                  serviceName: task-api-service
+                  servicePort: 80
+                path: /

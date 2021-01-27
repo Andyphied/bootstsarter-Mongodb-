@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: post-api-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: post-api-db
+  template:
+    metadata:
+      labels:
+        app: post-api-db
+    spec:
+      containers:
+      - name: post-api
+        image: bootcamp-starter-kit_posts-api
+        imagePullPolicy: Never #IfNotPresent
+        ports:
+        - name: nodejs-port
+          containerPort: 5000
+        env:
+          - name: PG_HOST
+            value: postgres-service
+          - name: PG_PORT
+            value: "5432" 
+          - name: PG_DATABASE
+            value: starterkit
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                name: postgres-db
+                key: username
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: postgres-db
+                key: password

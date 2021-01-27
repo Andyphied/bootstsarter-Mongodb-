@@ -1,0 +1,15 @@
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+    name: post-api-backend-ingress
+    namespace: hopper
+spec:
+    rules:
+        - host: post-api.service
+          http:
+            paths:
+              - backend:
+                  serviceName: post-api-service
+                  servicePort: 80
+                path: /

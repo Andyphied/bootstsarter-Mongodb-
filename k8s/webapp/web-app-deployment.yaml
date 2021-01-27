@@ -1,0 +1,30 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: web-app
+    namespace: hopper
+    labels:
+        app: web-app
+    
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            app: web-app
+    template:
+        metadata:
+            labels:
+                app: web-app
+        spec:
+            containers:
+                - name: web-app-service
+                  image: bootcamp-starter-kit_webapp:latest
+                  imagePullPolicy: Never
+                  ports:
+                     - containerPort: 8000
+                  env:
+                      - name: POST_BACKEND_URL
+                        value: http://post-api-service
+                      - name: TASK_BACKEND_URL
+                        value: http://task-api-service

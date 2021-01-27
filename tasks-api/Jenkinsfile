@@ -1,0 +1,92 @@
+node {
+   def commit_id
+   environment {
+        channel = "#pipeline-notifications"
+        team_domain = "slack team domain"
+        slack_generated_token = credentials("slack generated token")
+        deploy_version = 1
+        build_url ="https://gitlab.com.cvp/..."
+
+    }
+   stage('Preparation Source code') {
+     checkout scm
+     sh "git rev-parse --short HEAD > .git/commit-id"                        
+     commit_id = readFile('.git/commit-id').trim()
+   }
+   stage('Building Task api') {
+     nodejs(nodeJSInstallationName: 'nodejs') {
+        sh 'npm install' 
+     }
+   }
+   stage('Test for Task api') {
+     nodejs(nodeJSInstallationName: 'nodejs') {
+       sh 'npm install --only=dev'
+       sh 'npm test'
+     }
+   }
+   stage('Sonarqube Code Quality Check') {
+
+   steps {
+       script {
+
+       def scannerHome = tool 'sonarqube';
+
+           withSonarQubeEnv("sonarqube-container") {
+
+           sh "${tool("sonarqube")}/bin/sonar-scanner \
+
+           -Dsonar.projectKey=test-node-js \
+
+           -Dsonar.sources=. \
+
+           -Dsonar.css.node=. \
+
+           -Dsonar.host.url=https://sonarqube-hopper.apps.h4r-ref-4a5741.internal.cvpcorp.io/ \
+
+           -Dsonar.login=your-generated-token-from-sonarqube-container"
+
+               }
+           }
+       }
+
+   stage("Deploy to production") {
+            agent { node { label "openshift-prod" } }
+
+            when {
+                branch "master"
+                environment name: "IS_NEW_VERSION", value: "YES"
+            }
+                sh "kubectl create -f ../k8s/taskapi . -n=hopper "
+                
+            }
+
+            post {
+                success {
+                    slackSend(
+                            teamDomain: "${env.team_domain}",
+                            token: "${env.slack_generated_token}",
+                            channel: "${env.channel}",
+                            color: "good",
+                            message: "${env.slack_pre} production deploy: *${env.deploy_version}*. <${env.DEPLOY_URL}|Access service> - <${env.build_url}|Check build>"
+                    )
+                }
+
+                failure {
+                    slackSend(
+                            teamDomain: "${env.team_domain}",
+                            token: "${env.slack_generated_token}",
+                            channel: "${env.channel}",
+                            color: "danger",
+                            message: "${env.slack_pre} production deploy failed: *${env.deploy_version}*. <${env.build_url}|Check build>"
+                    )
+                }
+            }
+        }
+    }
+
+   stage('docker build/push') {
+     docker.withRegistry('https://index.docker.io/v1/', 'dockerhub') {
+       def app = docker.build("wardviaene/docker-nodejs-demo:${commit_id}", '.').push()
+     }
+   }
+}
